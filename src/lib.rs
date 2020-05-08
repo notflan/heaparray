@@ -585,6 +585,7 @@ where T: std::hash::Hash
     }
 }
 
+/// Comsume `slice` and move all its elements to the heap as `Box<[T]>`
 pub fn box_slice<T>(slice: &mut [T]) -> Box<[T]>
 {
     HeapArray::from_slice(slice).into_box()
