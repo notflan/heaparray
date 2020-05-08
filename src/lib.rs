@@ -43,6 +43,17 @@ mod tests {
 	assert_eq!(ha3[2], 5u8);
 	assert_eq!(ha3, ha2);
     }
+
+    #[test]
+    fn to_box()
+    {
+	let  ha = heap![u8; 10];
+	let mut bx = ha.into_box();
+	bx[0] = 10;
+
+	assert_eq!(bx.len(), 10);
+	assert_eq!(bx[0], 10);
+    }
 }
 
 use std::ops::{Index,IndexMut};
@@ -136,6 +147,15 @@ impl<T> HeapArray<T> {
 	Self {
 	    ptr: 0 as *mut T,
 	    count: 0
+	}
+    }
+
+    pub fn into_box(mut self) -> Box<[T]>
+    {
+	unsafe {
+	    let bx = Box::from_raw(self.as_mut() as *mut [T]);
+	    std::mem::forget(self);
+	    bx
 	}
     }
 
