@@ -39,6 +39,14 @@ mod tests {
     }
 
     #[test]
+    fn zero_size()
+    {
+	let mut ar: [u8; 0] = <[_; 0]>::default();
+	let osize = box_slice(&mut ar);
+	assert_eq!(osize.len(), 0);
+    }
+
+    #[test]
     fn macro_works()
     {
 	let ha = heap![5u8; 10];
@@ -588,5 +596,10 @@ where T: std::hash::Hash
 /// Comsume `slice` and move all its elements to the heap as `Box<[T]>`
 pub fn box_slice<T>(slice: &mut [T]) -> Box<[T]>
 {
-    HeapArray::from_slice(slice).into_box()
+    if slice.len() == 0 {
+	let ar: [T; 0] = <[_; 0]>::default();
+	Box::new(ar)
+    } else {
+	HeapArray::from_slice(slice).into_box()
+    }
 }
