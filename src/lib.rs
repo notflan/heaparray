@@ -4,6 +4,15 @@
 mod tests {
     use super::*;
     use std::hash::{Hash,Hasher};
+
+    #[test]
+    fn test_box_slice()
+    {
+	let mut slc = [10; 32];
+	let bx = box_slice(&mut slc[..5]);
+
+	assert_eq!(*bx, [10,10,10,10,10]);
+    }
     
     #[test]
     fn it_works() {
@@ -574,4 +583,9 @@ where T: std::hash::Hash
 	self.count.hash(state);
 	self.as_slice().hash(state);
     }
+}
+
+pub fn box_slice<T>(slice: &mut [T]) -> Box<[T]>
+{
+    HeapArray::from_slice(slice).into_box()
 }
