@@ -64,6 +64,14 @@ mod tests {
     }
 
     #[test]
+    fn equality()
+    {
+	assert_eq!(heap![1,2,3], vec![1,2,3]);
+	assert!(heap![0,0,0] != vec![1,2,2]);
+	assert_eq!(heap![0; 32], &[0i32; 32]);
+    }
+
+    #[test]
     fn from_slice_box()
     {
 	let mut slice = &mut [10;32][..];
@@ -508,8 +516,8 @@ where T: Clone
 }
 
 impl<T> std::cmp::Eq for HeapArray<T>
-where T: std::cmp::Eq{}
-impl<T> std::cmp::PartialEq for HeapArray<T>
+where T: std::cmp::Eq {}
+/*impl<T> std::cmp::PartialEq<HeapArray<T>> for HeapArray<T>
 where T: std::cmp::PartialEq
 {
     fn eq(&self, other: &Self) -> bool
@@ -523,7 +531,25 @@ where T: std::cmp::PartialEq
 		 true
 	     })
     }
+}*/
+
+impl<T, U> std::cmp::PartialEq<U> for HeapArray<T>
+    where T: std::cmp::PartialEq,
+	  U: AsRef<[T]>
+{
+    fn eq(&self, other: &U) -> bool
+    {
+	let other = other.as_ref();
+	self.len() == other.len() &&
+	{
+	    for (x, y) in self.iter().zip(0..other.len()) {
+		if x != &other[y] {return false;}
+	    }
+	    true
+	}
+    }
 }
+
 fn to_hex_string(bytes: &[u8]) -> String {
     let strs: Vec<String> = bytes.iter()
         .map(|b| format!("{:02x}", b))
