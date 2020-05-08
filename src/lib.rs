@@ -1,3 +1,5 @@
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -42,17 +44,23 @@ mod tests {
 	let ha3 = heap![5,5,5,5,5,5,5,5,5,5];
 	assert_eq!(ha3[2], 5u8);
 	assert_eq!(ha3, ha2);
+
+	assert_eq!(ha2.into_vec(), ha3.into_vec());
     }
 
     #[test]
     fn to_box()
     {
-	let  ha = heap![u8; 10];
-	let mut bx = ha.into_box();
-	bx[0] = 10;
+	let mut ha = heap![u8; 10];
+	{
+	    ha[1] = 22;
+	    let mut bx = ha.into_box();
+	    bx[0] = 10;
 
-	assert_eq!(bx.len(), 10);
-	assert_eq!(bx[0], 10);
+	    assert_eq!(bx.len(), 10);
+	    assert_eq!(bx[0], 10);
+	    assert_eq!(bx[1], 22);
+	}
     }
 }
 
@@ -60,6 +68,9 @@ use std::ops::{Index,IndexMut};
 use std::slice::SliceIndex;
 
 #[derive(Debug)]
+/// An simple array on the heap, manages by `calloc()` and `free()`s on Drop from `libc`.
+///
+/// Essentially a `Vec<T>` that cannot change size.
 pub struct HeapArray<T> {
     ptr: *mut T,
     count: usize,
@@ -71,14 +82,23 @@ fn copy_slice<T: Clone>(dst: &mut [T], src: &[T])
     }
 }
 
-
 #[macro_export]
+/// Count arg list.
 macro_rules! count_args {
     () => (0usize);
-    ( $x:tt $($xs:tt)* ) => (1usize + count_args!($($xs)*));
+    ( $x:tt $($xs:tt)* ) => (1usize + $crate::count_args!($($xs)*));
 }
 
 #[macro_export]
+/// Create a heap array, using the same syntax as array definitions or vec![].
+///
+/// # Example
+/// ```rust
+/// let array = heaparray::heap![u8; 10]; // Creates a 10 element HeapArray<u8>
+/// let array2 = heaparray::heap![5; 10]; // Creates a 10 element HeapArray where each element is 5
+/// assert_eq!(5i32, array2[9]);
+/// let array3 = heaparray::heap![1,2,3]; // Create a 3 element HeapArray where the elements are [1, 2, 3]
+/// ```
 macro_rules! heap {
     ($type:ty; $number:expr) => {
 	{
@@ -110,11 +130,13 @@ macro_rules! heap {
 }
 
 impl<T> HeapArray<T> {
+    /// Size of `T`
     pub const fn element_size() -> usize
     {
 	std::mem::size_of::<T>()
     }
-    
+
+    /// Allocate a new `HeapArray<T>` with `size` elements.
     pub fn allocate(size: usize) -> Self {
 	assert!(size>0);
 	unsafe {
@@ -125,24 +147,29 @@ impl<T> HeapArray<T> {
 	}
     }
 
+    /// Return `HeapArray<T>` as an iterator.
     pub fn iter<'a>(&'a self) -> Iter<'a, T>
     {
 	self.into_iter()
     }
 
+    /// As a mutable slice of all bytes in the array.
     pub fn as_bytes_mut(&self) -> &mut [u8]
     {
 	unsafe {
 	    std::slice::from_raw_parts_mut(self.ptr as *mut u8, self.count*std::mem::size_of::<T>())
 	}
     }
+    
+    /// As a slice of all bytes in the array.
     pub fn as_bytes(&self) -> &[u8]
     {
 	unsafe {
 	    std::slice::from_raw_parts(self.ptr as *const u8, self.count*std::mem::size_of::<T>())
 	}
     }
-    
+
+    /// A `null` pointer as `HeapArray<T>` that will not free on drop. (unsafe)
     pub unsafe fn null() -> Self {
 	Self {
 	    ptr: 0 as *mut T,
@@ -150,6 +177,7 @@ impl<T> HeapArray<T> {
 	}
     }
 
+    /// Consumes the `HeapArray<T>` and returns a boxed slice that now owns the data.
     pub fn into_box(mut self) -> Box<[T]>
     {
 	unsafe {
@@ -159,10 +187,12 @@ impl<T> HeapArray<T> {
 	}
     }
 
+    /// Is this instance referencing a `null` pointer?
     pub fn is_null(&self) -> bool {
 	self.ptr == 0 as *mut T
     }
 
+    /// Reallocate this `HeapArray<T>` to a new size.
     pub fn reallocate(&mut self, size: usize) -> &mut Self {
 	assert!(size>0);
 	unsafe {
@@ -172,6 +202,7 @@ impl<T> HeapArray<T> {
 	self
     }
 
+    /// Compare the equality of the memory block this `HeapArray<T>` and another point to.
     pub fn mem_eq(&self, other: &Self) -> bool
     {
 	unsafe {
@@ -180,17 +211,20 @@ impl<T> HeapArray<T> {
 		 libc::memcmp(self.ptr as *mut core::ffi::c_void, other.ptr as *mut core::ffi::c_void, self.count)==0)
 	}
     }
-    
+
+    /// Memory block as a const pointer.
     pub fn as_ptr(&self) -> *const T
     { 
 	self.ptr as *const T
     }
 
+    /// Memory block as a mutable pointer.
     pub fn as_mut_ptr(&mut self) -> *mut T
     {
 	self.ptr
     }
 
+    /// Fill this `HeapArray<T>` with a value.
     pub fn fill(&mut self, value: &T)
     where T: Clone
     {
@@ -205,7 +239,8 @@ impl<T> HeapArray<T> {
 	    }
 	}
     }
-    
+
+    /// Create a new `HeapArray<T>` from a `Vec<T>`.
     pub fn from_vec(vec: Vec<T>) -> Self {
 	let mut this = Self::allocate(vec.len());
 	let mut i=0;
@@ -216,6 +251,7 @@ impl<T> HeapArray<T> {
 	this
     }
 
+    /// Create a new `HeapArray<T>` from a raw pointer and size.
     pub unsafe fn from_raw(ptr: *mut T, size: usize) -> Self {
 	Self {
 	    ptr: ptr,
@@ -223,6 +259,7 @@ impl<T> HeapArray<T> {
 	}
     }
 
+    /// As a slice of `T`
     pub fn as_slice(&self) -> &[T]
     {
 	unsafe {
@@ -230,6 +267,7 @@ impl<T> HeapArray<T> {
 	}
     }
 
+    /// As a mutable slice of `T`
     pub fn as_mut(&mut self) -> &mut [T]
     {
 	unsafe {
@@ -237,6 +275,7 @@ impl<T> HeapArray<T> {
 	}	
     }
 
+    /// Fill the memory block this `HeapArray<T>` points to with a single byte.
     pub fn fill_bytes(&mut self, value: u8)
     {
 	unsafe {
@@ -244,6 +283,7 @@ impl<T> HeapArray<T> {
 	}	
     }
 
+    /// Clone this `HeapArray<T>` into a `Vec<T>`
     pub fn to_vec(&self) -> Vec<T>
     where T: Clone
     {
@@ -252,15 +292,28 @@ impl<T> HeapArray<T> {
 	v
     }
 
+    /// Consumes the `HeapArray<T>`, and returns a `Vec<T>` containing all the elements.
+    pub fn into_vec(mut self) -> Vec<T>
+    {
+	let mut v = Vec::with_capacity(self.count);
+	for i in 0..self.count {
+	    let x = unsafe { std::mem::replace(&mut self[i], std::mem::MaybeUninit::zeroed().assume_init())};
+	    v.push(x);
+	}
+	v
+    }
+
+    /// Return the amount of elements this `HeapArray<T>` can hold.
     pub fn len(&self) -> usize {
 	self.count
     }
+    /// Returns the full size of the allocated memory block.
     pub fn len_bytes(&self) -> usize {
 	Self::element_size() * self.count
     }
-    
+
+    /// Clone the memory block into a new `HeapArray<T>`
     pub fn clone_mem(&self) -> Self
-    where T: Copy
     {
 	let mut this = Self::allocate(self.count);
 	unsafe {
@@ -273,8 +326,10 @@ impl<T> HeapArray<T> {
 impl<T> Drop for HeapArray<T> {
     fn drop(&mut self)
     {
-	unsafe {
-	    libc::free(self.ptr as *mut core::ffi::c_void);
+	if !self.is_null() {
+	    unsafe {
+		libc::free(self.ptr as *mut core::ffi::c_void);
+	    }
 	}
     }
     
@@ -340,8 +395,8 @@ where I: SliceIndex<[T]>
     }
 }
 
+/// Iterator for `HeapArray<T>`
 pub struct Iter<'a, T>(&'a HeapArray<T>, usize);
-pub struct IntoIter<T>(HeapArray<T>, usize);
 
 impl<'a, T> Iter<'a, T> {
     fn new(ha: &'a HeapArray<T>) -> Self {
@@ -411,13 +466,14 @@ where T: std::cmp::PartialEq
 {
     fn eq(&self, other: &Self) -> bool
     {
-	self.mem_eq(other)
-	    || {
-		for (x, y) in self.iter().zip(other.iter()) {
-		    if x != y { return false; }
-		}
-		true
-	    }
+	self.count == other.count &&
+	    (self.ptr == other.ptr
+	     || {
+		 for (x, y) in self.iter().zip(other.iter()) {
+		     if x != y { return false; }
+		 }
+		 true
+	     })
     }
 }
 fn to_hex_string(bytes: &[u8]) -> String {
