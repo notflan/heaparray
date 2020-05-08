@@ -62,6 +62,22 @@ mod tests {
 	    assert_eq!(bx[1], 22);
 	}
     }
+
+    #[test]
+    fn from_slice_box()
+    {
+	let mut slice = &mut [10;32][..];
+
+	let mut from = HeapArray::from_slice(&mut slice);
+	from[0] = 10;
+	assert_eq!(&[10,10,10,10], &from[..4]);
+
+	let slice = Box::new([1; 32]);
+	let from = HeapArray::from_boxed(slice);
+
+	assert_eq!(from.len(), 32);
+	assert_eq!(from[1], 1);
+    }
 }
 
 use std::ops::{Index,IndexMut};
@@ -118,9 +134,9 @@ macro_rules! heap {
 	{
 	    let mut ha = $crate::HeapArray::allocate($crate::count_args!($($n)*));
 	    {
-		let mut fp = 0;
+		let fp = 0;
 		$(
-		    fp+=1;
+		   let fp = fp + 1; 
 		    ha[fp-1] = $n;
 		)*
 	    }
@@ -144,6 +160,26 @@ impl<T> HeapArray<T> {
 		count: size,
 		ptr: libc::calloc(size, std::mem::size_of::<T>()) as *mut T,
 	    }
+	}
+    }
+
+    /// Consumes mutable slice `slice` and returns a new `HeapArray<T>` containing the elements.
+    pub fn from_slice(slice: &mut [T]) -> Self
+    {
+	let mut this = Self::allocate(slice.len());
+	let mut i=0;
+	for x in slice {
+	    this[i] = unsafe {std::mem::replace(x, std::mem::MaybeUninit::zeroed().assume_init())};
+	    i+=1;
+	}
+	this
+    }
+
+    /// Consumes a boxed slice and returns a new `HeapArray<T>` containing the elements.
+    pub fn from_boxed(slice: Box<[T]>) -> Self {
+	Self {
+	    count: slice.len(),
+	    ptr: Box::<[T]>::into_raw(slice) as *mut T,
 	}
     }
 
@@ -320,6 +356,18 @@ impl<T> HeapArray<T> {
 	    libc::memcpy(this.as_mut_ptr() as *mut core::ffi::c_void, self.as_ptr() as *mut core::ffi::c_void, self.count*std::mem::size_of::<T>());
 	}
 	this
+    }
+
+    /// Consumes `HeapArray<T>` and reinterprets the bytes as `HeapArray<U>`
+    pub fn reinterpret<U>(self) -> HeapArray<U>
+    {
+	assert_eq!(self.len_bytes() % HeapArray::<U>::element_size(), 0);
+	let result = HeapArray {
+	    ptr: self.ptr as *mut U,
+	    count: self.len_bytes() / HeapArray::<U>::element_size(),
+	};
+	std::mem::forget(self);
+	result
     }
 }
 
