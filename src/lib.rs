@@ -161,7 +161,7 @@ macro_rules! heap {
 	    {
 		let fp = 0;
 		$(
-		   let fp = fp + 1; 
+		    let fp = fp + 1; 
 		    ha[fp-1] = $n;
 		)*
 	    }
@@ -176,14 +176,34 @@ impl<T> HeapArray<T> {
     {
 	std::mem::size_of::<T>()
     }
-
+    
     /// Allocate a new `HeapArray<T>` with `size` elements.
     pub fn allocate(size: usize) -> Self {
-	assert!(size>0);
 	unsafe {
-	    Self {
-		count: size,
-		ptr: libc::calloc(size, std::mem::size_of::<T>()) as *mut T,
+	    let this = Self::allocate_ignore(size);
+	    assert!(!this.is_null());
+	    this
+	}
+    }
+
+    /// Allocate a new `HeapArray<T>` with `size` elements, ignore if `calloc()` fails.
+    pub unsafe fn allocate_ignore(size: usize) -> Self {
+	Self {
+	    count: size,
+	    ptr: libc::calloc(size, std::mem::size_of::<T>()) as *mut T,
+	}
+	
+    }
+
+    /// Attempt to allocate a new `HeapArray<T>` with `size` elements, returns `None` if `calloc()` fails.
+    pub fn try_allocate(size: usize) -> Option<Self>
+    {
+	unsafe {
+	    let this = Self::allocate_ignore(size);
+	    if this.is_null() {
+		None 
+	    } else {
+		Some(this)
 	    }
 	}
     }
@@ -537,13 +557,13 @@ where T: std::cmp::Eq {}
 /*impl<T> std::cmp::PartialEq<HeapArray<T>> for HeapArray<T>
 where T: std::cmp::PartialEq
 {
-    fn eq(&self, other: &Self) -> bool
-    {
-	self.count == other.count &&
-	    (self.ptr == other.ptr
-	     || {
-		 for (x, y) in self.iter().zip(other.iter()) {
-		     if x != y { return false; }
+fn eq(&self, other: &Self) -> bool
+{
+self.count == other.count &&
+(self.ptr == other.ptr
+|| {
+for (x, y) in self.iter().zip(other.iter()) {
+if x != y { return false; }
 		 }
 		 true
 	     })
