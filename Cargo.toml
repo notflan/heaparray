@@ -3,6 +3,8 @@ name = "heaparray"
 version = "0.1.0"
 authors = ["Avril <flanchan@cumallover.me>"]
 edition = "2018"
+description = "libc heap allocator for rust"
+license = "Mit"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

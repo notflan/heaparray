@@ -1,4 +1,4 @@
-
+pub mod alloc;
 
 #[cfg(test)]
 mod tests {
