@@ -219,7 +219,7 @@ impl<T> HeapArray<T> {
 	}
 	this
     }
-
+    
     /// Consumes a boxed slice and returns a new `HeapArray<T>` containing the elements.
     pub fn from_boxed(slice: Box<[T]>) -> Self {
 	Self {
